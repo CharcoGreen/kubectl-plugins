@@ -23,8 +23,7 @@ run(){
         esac
     done
 
-
-        eval ${BASE_COMMAND}
+    eval ${BASE_COMMAND}
 }
 
 run ${@}
