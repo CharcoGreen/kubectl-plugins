@@ -1,0 +1,30 @@
+#!/bin/bash
+
+BASE_COMMAND="
+kubectl get po  -o custom-columns=\"NAMESPACE\":metadata.namespace,\
+\"NAME\":.metadata.name,\
+\"CONT_NAME\":.spec.containers[*].name,\
+\"CPU_REQ\":.spec.containers[*].resources.requests.cpu,\
+\"CPU_LIM\":.spec.containers[*].resources.limits.cpu,\
+\"REQ_MEM\":.spec.containers[*].resources.requests.memory,\
+\"MEM_LIM\":.spec.containers[*].resources.limits.memory,\
+\"STATUS\":.status.phase,\
+\"NODE_NAME\":.spec.nodeName \
+--field-selector=status.phase==Running
+"
+
+run(){
+    
+    while getopts "n:" OPT; do
+        case ${OPT} in
+        n) NAMESPACE="${OPTARG,,}"
+           BASE_COMMAND="$BASE_COMMAND -n ${NAMESPACE}"
+           ;;
+        esac
+    done
+
+
+        eval ${BASE_COMMAND}
+}
+
+run ${@}
