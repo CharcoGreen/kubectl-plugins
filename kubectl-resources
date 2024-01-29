@@ -1,7 +1,20 @@
 #!/bin/bash
 
+# Exit on error, treat unset variables as an error, and ensure pipefail
+set -euo pipefail
+
+# Error handling function
+handle_error() {
+    echo "An error occurred on line $1 of the script"
+    exit 1
+}
+
+# Specify the error handling function to be called on error
+trap 'handle_error $LINENO' ERR
+
+# Define the base command with custom columns for kubectl get po
 BASE_COMMAND="
-kubectl get po  -o custom-columns=\"NAMESPACE\":metadata.namespace,\
+kubectl get po -o custom-columns=\"NAMESPACE\":metadata.namespace,\
 \"NAME\":.metadata.name,\
 \"CONT_NAME\":.spec.containers[*].name,\
 \"CPU_REQ\":.spec.containers[*].resources.requests.cpu,\
@@ -9,21 +22,50 @@ kubectl get po  -o custom-columns=\"NAMESPACE\":metadata.namespace,\
 \"REQ_MEM\":.spec.containers[*].resources.requests.memory,\
 \"MEM_LIM\":.spec.containers[*].resources.limits.memory,\
 \"STATUS\":.status.phase,\
-\"NODE_NAME\":.spec.nodeName \
---field-selector=status.phase==Running
+\"NODE_NAME\":.spec.nodeName 
 "
 
+# Function to run the base command with optional namespace
 run(){
-    
-    while getopts "n:" OPT; do
-        case ${OPT} in
-        n) NAMESPACE="${OPTARG,,}"
-           BASE_COMMAND="$BASE_COMMAND -n ${NAMESPACE}"
-           ;;
-        esac
-    done
+     # Parse command line options
+     while getopts "n:h" OPT; do
+          case ${OPT} in
+          n) 
+              # Convert namespace to lowercase
+              NAMESPACE="${OPTARG,,}"
+              
+              # Validate namespace
+              if [[ ! "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+                  echo "Invalid namespace: $NAMESPACE" >&2
+                  exit 1
+              fi
 
-    eval ${BASE_COMMAND}
+              # Add namespace to base command
+              BASE_COMMAND="$BASE_COMMAND -n \"$NAMESPACE\""
+              ;;
+          h) 
+              # Display help message
+              echo "Usage: $0 [-n NAMESPACE]"
+              exit 0
+              ;;
+          *) 
+              # Display error message for invalid options
+              echo "Invalid option: -$OPTARG" >&2
+              echo "Use -h for help."
+              exit 1
+              ;;
+          esac
+     done
+
+     # Run the command
+     eval $BASE_COMMAND
+     COMMAND_STATUS=$?
+
+     if [ $COMMAND_STATUS -ne 0 ]; then
+         echo "The command failed with exit status: $COMMAND_STATUS"
+         exit $COMMAND_STATUS
+     fi
 }
 
-run ${@}
+# Call the run function with all command line arguments
+run "${@}"
